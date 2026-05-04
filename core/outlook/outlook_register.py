@@ -47,19 +47,12 @@ class OutlookRegistration:
         self._update_progress("正在启动浏览器...")
 
         try:
-            # 检查本地chromedriver是否存在
-            driver_path = None
-            if Settings.CHROMEDRIVER_PATH and Settings.CHROMEDRIVER_PATH.exists():
-                driver_path = str(Settings.CHROMEDRIVER_PATH)
-                self._update_progress(f"✅ 找到本地chromedriver: {driver_path}")
-            else:
-                self._update_progress("⚠️  本地chromedriver不存在，将自动下载（可能遇到SSL错误）")
+            self._update_progress("将自动检测Chrome版本并管理chromedriver")
 
             # 使用公共的浏览器指纹伪装函数
             self.driver = create_stealth_browser(
                 chrome_version=Settings.CHROME_VERSION,
-                headless=False,
-                driver_executable_path=driver_path
+                headless=False
             )
             self._update_progress("浏览器启动成功")
         except Exception as e:

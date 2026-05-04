@@ -50,7 +50,6 @@ class RegisterWorker(QThread):
             driver = create_stealth_browser(
                 chrome_version=Settings.CHROME_VERSION,
                 headless=False,
-                driver_executable_path=Settings.CHROMEDRIVER_PATH,
                 proxy=proxy
             )
 

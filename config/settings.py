@@ -41,10 +41,6 @@ ACCOUNTS_FILE = DATA_DIR / "accounts.txt"
 # 数据库路径
 DATABASE_PATH = DATA_DIR / "outlook.db"
 
-# ChromeDriver路径（从资源目录获取，打包后在app包内）
-CHROMEDRIVER_PATH = RESOURCE_DIR / "config" / "chromedriver"
-
-
 class Settings:
     """全局配置类"""
 
@@ -53,8 +49,7 @@ class Settings:
     APP_VERSION = "1.0.0"
 
     # Chrome配置
-    CHROME_VERSION = 142  # Chrome主版本号
-    CHROMEDRIVER_PATH = CHROMEDRIVER_PATH  # 本地chromedriver路径
+    CHROME_VERSION = None  # Chrome主版本号，None表示自动检测当前已安装版本
     
     # 超时配置
     DEFAULT_TIMEOUT = 20  # 默认等待超时（秒）
@@ -83,4 +78,3 @@ class Settings:
             'no_sandbox': True,
             'accept_languages': 'zh-CN,zh;q=0.9,en;q=0.8'
         }
-

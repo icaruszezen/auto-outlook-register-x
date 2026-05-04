@@ -10,7 +10,10 @@
 - 时区和语言设置
 """
 import random
+import re
 import string
+import subprocess
+from pathlib import Path
 import undetected_chromedriver as uc
 from typing import Optional
 from utils.logger import logger
@@ -95,6 +98,72 @@ class BrowserFingerprint:
         return random.choice([2, 4, 6, 8, 12, 16])
 
 
+def _get_executable_major_version(executable_path: str) -> Optional[int]:
+    """读取 Chrome/ChromeDriver 可执行文件的主版本号。"""
+    try:
+        result = subprocess.run(
+            [str(executable_path), "--version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except Exception as e:
+        logger.debug(f"读取版本失败: {executable_path}, {e}")
+        return None
+
+    output = f"{result.stdout} {result.stderr}"
+    match = re.search(r"\b(\d+)\.", output)
+    if not match:
+        logger.debug(f"无法解析版本输出: {output.strip()}")
+        return None
+
+    return int(match.group(1))
+
+
+def _get_installed_chrome_major_version() -> Optional[int]:
+    """获取当前系统 Chrome 主版本号。"""
+    chrome_path = uc.find_chrome_executable()
+    if not chrome_path:
+        return None
+
+    return _get_executable_major_version(chrome_path)
+
+
+def _get_cached_chromedriver_path(chrome_version: Optional[int]) -> Optional[str]:
+    """获取 undetected-chromedriver 已缓存的 driver 路径。"""
+    try:
+        from undetected_chromedriver.patcher import Patcher
+
+        patcher = Patcher(version_main=chrome_version or 0)
+    except Exception as e:
+        logger.debug(f"获取缓存chromedriver路径失败: {e}")
+        return None
+
+    cached_path = Path(patcher.executable_path)
+    if not cached_path.exists():
+        return None
+
+    return str(cached_path)
+
+
+def _get_matching_cached_chromedriver(chrome_version: Optional[int]) -> Optional[str]:
+    """获取与当前 Chrome 主版本匹配的缓存 driver。"""
+    if not chrome_version:
+        return None
+
+    cached_path = _get_cached_chromedriver_path(chrome_version)
+    if not cached_path:
+        return None
+
+    cached_major = _get_executable_major_version(cached_path)
+    if cached_major == chrome_version:
+        return cached_path
+
+    logger.debug(f"缓存chromedriver版本({cached_major})与Chrome版本({chrome_version})不匹配")
+    return None
+
+
 def create_stealth_browser(chrome_version: Optional[int] = None,
                           user_agent: Optional[str] = None,
                           headless: bool = False,
@@ -109,7 +178,7 @@ def create_stealth_browser(chrome_version: Optional[int] = None,
         user_agent: 自定义User-Agent，如果为None则随机选择
         headless: 是否使用无头模式
         retry: 重试次数，默认3次
-        driver_executable_path: 本地chromedriver路径，如果指定则不下载
+        driver_executable_path: 自定义chromedriver路径，通常不需要指定
         proxy: ProxyConfig对象，用于设置代理
 
     Returns:
@@ -120,91 +189,116 @@ def create_stealth_browser(chrome_version: Optional[int] = None,
     """
     logger.info("🔧 开始配置浏览器指纹伪装...")
 
-    # 检查本地chromedriver
+    installed_chrome_major = _get_installed_chrome_major_version()
+    if installed_chrome_major:
+        if chrome_version and chrome_version != installed_chrome_major:
+            logger.warning(
+                f"⚠️  配置的Chrome版本({chrome_version})与当前Chrome版本({installed_chrome_major})不一致，"
+                f"将使用当前Chrome版本"
+            )
+        chrome_version = installed_chrome_major
+
+    # 检查自定义chromedriver
     if driver_executable_path:
-        from pathlib import Path
         driver_path = Path(driver_executable_path)
         if driver_path.exists():
-            logger.info(f"✅ 使用本地chromedriver: {driver_path}")
+            logger.info(f"✅ 使用指定chromedriver: {driver_path}")
+            driver_major = _get_executable_major_version(str(driver_path))
+            if installed_chrome_major and driver_major and driver_major != installed_chrome_major:
+                logger.warning(
+                    f"⚠️  指定chromedriver版本({driver_major})与Chrome版本({installed_chrome_major})不匹配，"
+                    f"将跳过指定driver"
+                )
+                driver_executable_path = None
         else:
-            logger.warning(f"⚠️  本地chromedriver不存在: {driver_path}，将尝试自动下载")
+            logger.warning(f"⚠️  指定chromedriver不存在: {driver_path}，将尝试自动下载")
             driver_executable_path = None
 
-    # 初始化Chrome选项
-    chrome_options = uc.ChromeOptions()
+    if not driver_executable_path:
+        cached_driver_path = _get_matching_cached_chromedriver(chrome_version)
+        if cached_driver_path:
+            logger.info(f"✅ 使用已缓存匹配chromedriver: {cached_driver_path}")
+            driver_executable_path = cached_driver_path
 
-    # ========== 1. 基础反检测参数 ==========
-    logger.debug("配置基础反检测参数...")
-    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-gpu")
-
-    # ========== 1.5. 代理配置 ==========
-    if proxy:
-        logger.info(f"🌐 配置代理: {proxy.to_chrome_proxy()}")
-        chrome_options.add_argument(f"--proxy-server={proxy.to_chrome_proxy()}")
-    else:
-        logger.debug("未配置代理，使用本地IP")
-        chrome_options.add_argument("--no-proxy-server")  # 禁用系统代理，避免ERR_CONNECTION_CLOSED错误
-    
-    # ========== 2. User-Agent伪装 ==========
     ua = user_agent or BrowserFingerprint.get_random_user_agent()
-    logger.debug(f"设置User-Agent: {ua[:80]}...")
-    chrome_options.add_argument(f"user-agent={ua}")
-    
-    # ========== 3. 屏幕和显示设置 ==========
     width, height = BrowserFingerprint.get_random_screen_resolution()
-    logger.debug(f"设置屏幕分辨率: {width}x{height}")
-    chrome_options.add_argument(f"--window-size={width},{height}")
-    chrome_options.add_argument("--start-maximized")
-    
-    # ========== 4. 语言和地区设置 ==========
     language = BrowserFingerprint.get_random_language()
-    logger.debug(f"设置语言: {language}")
-    chrome_options.add_argument("--lang=zh-CN")
-    chrome_options.add_experimental_option('prefs', {
-        'intl.accept_languages': language
-    })
-    
-    # ========== 5. 时区设置 ==========
     timezone = BrowserFingerprint.get_random_timezone()
-    logger.debug(f"设置时区: {timezone}")
-    chrome_options.add_argument(f"--timezone-id={timezone}")
-    
-    # ========== 6. 硬件信息伪装 ==========
     device_memory = BrowserFingerprint.get_random_device_memory()
     hw_concurrency = BrowserFingerprint.get_random_hardware_concurrency()
-    logger.debug(f"设置硬件信息: 内存{device_memory}GB, CPU{hw_concurrency}核")
-    
-    # ========== 7. WebRTC泄露防护 ==========
-    logger.debug("配置WebRTC泄露防护...")
-    chrome_options.add_argument("--disable-extensions")
-    chrome_options.add_argument("--disable-plugins")
-    chrome_options.add_argument("--disable-sync")
-    chrome_options.add_argument("--disable-default-apps")
-    
-    # ========== 8. 隐私和安全设置 ==========
-    logger.debug("配置隐私和安全设置...")
-    chrome_options.add_argument("--disable-web-resources")
-    chrome_options.add_argument("--disable-client-side-phishing-detection")
-    chrome_options.add_argument("--disable-component-extensions-with-background-pages")
-    
-    # ========== 9. 性能优化 ==========
-    logger.debug("配置性能优化...")
-    chrome_options.add_argument("--disable-background-networking")
-    chrome_options.add_argument("--disable-breakpad")
-    chrome_options.add_argument("--disable-client-side-phishing-detection")
-    chrome_options.add_argument("--disable-default-apps")
-    chrome_options.add_argument("--disable-hang-monitor")
-    chrome_options.add_argument("--disable-popup-blocking")
-    chrome_options.add_argument("--disable-prompt-on-repost")
-    chrome_options.add_argument("--disable-sync")
-    
-    # ========== 10. 无头模式（可选） ==========
-    if headless:
-        logger.debug("启用无头模式")
-        chrome_options.add_argument("--headless=new")
+
+    def _build_chrome_options() -> uc.ChromeOptions:
+        # undetected-chromedriver 会给 options 绑定 session；重试必须使用新对象。
+        chrome_options = uc.ChromeOptions()
+
+        # ========== 1. 基础反检测参数 ==========
+        logger.debug("配置基础反检测参数...")
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-gpu")
+
+        # ========== 1.5. 代理配置 ==========
+        if proxy:
+            logger.info(f"🌐 配置代理: {proxy.to_chrome_proxy()}")
+            chrome_options.add_argument(f"--proxy-server={proxy.to_chrome_proxy()}")
+        else:
+            logger.debug("未配置代理，使用本地IP")
+            chrome_options.add_argument("--no-proxy-server")  # 禁用系统代理，避免ERR_CONNECTION_CLOSED错误
+
+        # ========== 2. User-Agent伪装 ==========
+        logger.debug(f"设置User-Agent: {ua[:80]}...")
+        chrome_options.add_argument(f"user-agent={ua}")
+
+        # ========== 3. 屏幕和显示设置 ==========
+        logger.debug(f"设置屏幕分辨率: {width}x{height}")
+        chrome_options.add_argument(f"--window-size={width},{height}")
+        chrome_options.add_argument("--start-maximized")
+
+        # ========== 4. 语言和地区设置 ==========
+        logger.debug(f"设置语言: {language}")
+        chrome_options.add_argument("--lang=zh-CN")
+        chrome_options.add_experimental_option('prefs', {
+            'intl.accept_languages': language
+        })
+
+        # ========== 5. 时区设置 ==========
+        logger.debug(f"设置时区: {timezone}")
+        chrome_options.add_argument(f"--timezone-id={timezone}")
+
+        # ========== 6. 硬件信息伪装 ==========
+        logger.debug(f"设置硬件信息: 内存{device_memory}GB, CPU{hw_concurrency}核")
+
+        # ========== 7. WebRTC泄露防护 ==========
+        logger.debug("配置WebRTC泄露防护...")
+        chrome_options.add_argument("--disable-extensions")
+        chrome_options.add_argument("--disable-plugins")
+        chrome_options.add_argument("--disable-sync")
+        chrome_options.add_argument("--disable-default-apps")
+
+        # ========== 8. 隐私和安全设置 ==========
+        logger.debug("配置隐私和安全设置...")
+        chrome_options.add_argument("--disable-web-resources")
+        chrome_options.add_argument("--disable-client-side-phishing-detection")
+        chrome_options.add_argument("--disable-component-extensions-with-background-pages")
+
+        # ========== 9. 性能优化 ==========
+        logger.debug("配置性能优化...")
+        chrome_options.add_argument("--disable-background-networking")
+        chrome_options.add_argument("--disable-breakpad")
+        chrome_options.add_argument("--disable-client-side-phishing-detection")
+        chrome_options.add_argument("--disable-default-apps")
+        chrome_options.add_argument("--disable-hang-monitor")
+        chrome_options.add_argument("--disable-popup-blocking")
+        chrome_options.add_argument("--disable-prompt-on-repost")
+        chrome_options.add_argument("--disable-sync")
+
+        # ========== 10. 无头模式（可选） ==========
+        if headless:
+            logger.debug("启用无头模式")
+            chrome_options.add_argument("--headless=new")
+
+        return chrome_options
     
     # ========== 11. 启动浏览器（带重试机制） ==========
     logger.info("🚀 启动undetected-chromedriver...")
@@ -217,13 +311,15 @@ def create_stealth_browser(chrome_version: Optional[int] = None,
 
             # 构建启动参数
             driver_kwargs = {
-                'options': chrome_options,
+                'options': _build_chrome_options(),
             }
 
             # 如果指定了本地driver路径，使用本地driver
             if driver_executable_path:
                 driver_kwargs['driver_executable_path'] = str(driver_executable_path)
-                logger.info(f"📍 使用本地chromedriver: {driver_executable_path}")
+                if chrome_version:
+                    driver_kwargs['version_main'] = chrome_version
+                logger.info(f"📍 使用chromedriver: {driver_executable_path}")
             elif chrome_version:
                 driver_kwargs['version_main'] = chrome_version
                 logger.debug(f"使用指定Chrome版本: {chrome_version}")
@@ -333,4 +429,3 @@ def _inject_fingerprint_scripts(driver: uc.Chrome,
     except Exception as e:
         logger.warning(f"⚠️  JavaScript脚本注入失败: {e}")
         # 不中断流程，继续执行
-
