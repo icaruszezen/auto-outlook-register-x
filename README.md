@@ -20,16 +20,27 @@
 - **Python**: 3.8+
 - **Chrome**: 142+ （推荐最新版）
 - **操作系统**: macOS / Windows
-- **Conda**: 用于环境隔离（推荐）
 
-### 2. 创建 Conda 环境
+### 2. 创建虚拟环境（venv）
+
+**macOS / Linux**：
 
 ```bash
-# 创建 conda 环境
-conda create -n tool python=3.10
+# 创建 venv 虚拟环境
+python3 -m venv .venv
 
 # 激活环境
-conda activate tool
+source .venv/bin/activate
+```
+
+**Windows**：
+
+```bat
+REM 创建 venv 虚拟环境
+python -m venv .venv
+
+REM 激活环境
+.venv\Scripts\activate
 ```
 
 ### 3. 安装依赖
@@ -76,7 +87,7 @@ python main.py
 ### macOS 打包
 
 ```bash
-# 直接运行打包脚本（会自动激活 tool 环境）
+# 直接运行打包脚本（会自动创建并激活 venv 虚拟环境）
 bash build_macos.sh
 ```
 
@@ -87,7 +98,7 @@ bash build_macos.sh
 ### Windows 打包
 
 ```bash
-# 直接运行打包脚本（会自动激活 tool 环境）
+# 直接运行打包脚本（会自动创建并激活 venv 虚拟环境）
 build_windows.bat
 ```
 
@@ -98,7 +109,7 @@ build_windows.bat
 ### 打包脚本说明
 
 打包脚本会自动：
-1. ✅ 激活 conda tool 环境
+1. ✅ 创建并激活 venv 虚拟环境
 2. ✅ 检查并安装必要的依赖
 3. ✅ 清理旧的构建文件
 4. ✅ 使用 PyInstaller 打包应用

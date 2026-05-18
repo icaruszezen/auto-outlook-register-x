@@ -7,18 +7,30 @@ echo "=================================="
 echo ""
 
 # 检查 Python
-if ! command -v python &> /dev/null; then
+if ! command -v python3 &> /dev/null; then
     echo "❌ 错误: 未找到 Python"
     echo "请先安装 Python 3.8+"
     exit 1
 fi
 
-# 检查依赖
-echo "📦 检查依赖..."
-python -c "import PyQt6" 2>/dev/null
-if [ $? -ne 0 ]; then
-    echo "⚠️  缺少依赖，正在安装..."
+# 检查并创建 venv 虚拟环境
+if [ ! -f ".venv/bin/activate" ]; then
+    echo "🔄 创建 venv 虚拟环境..."
+    python3 -m venv .venv
+    echo "⚠️  首次运行，正在安装依赖..."
+    source .venv/bin/activate
     pip install -r requirements.txt
+else
+    # 激活 venv 虚拟环境
+    source .venv/bin/activate
+
+    # 检查依赖
+    echo "📦 检查依赖..."
+    python -c "import PyQt6" 2>/dev/null
+    if [ $? -ne 0 ]; then
+        echo "⚠️  缺少依赖，正在安装..."
+        pip install -r requirements.txt
+    fi
 fi
 
 # 启动应用
@@ -27,4 +39,3 @@ python main.py
 
 echo ""
 echo "👋 应用已关闭"
-

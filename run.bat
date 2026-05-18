@@ -15,12 +15,29 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM 检查依赖
-echo 📦 检查依赖...
-python -c "import PyQt6" >nul 2>&1
-if errorlevel 1 (
-    echo ⚠️  缺少依赖，正在安装...
+REM 检查并创建 venv 虚拟环境
+if not exist ".venv\Scripts\activate.bat" (
+    echo 🔄 创建 venv 虚拟环境...
+    python -m venv .venv
+    if errorlevel 1 (
+        echo ❌ 创建虚拟环境失败！
+        pause
+        exit /b 1
+    )
+    echo ⚠️  首次运行，正在安装依赖...
+    call .venv\Scripts\activate.bat
     pip install -r requirements.txt
+) else (
+    REM 激活 venv 虚拟环境
+    call .venv\Scripts\activate.bat
+
+    REM 检查依赖
+    echo 📦 检查依赖...
+    python -c "import PyQt6" >nul 2>&1
+    if errorlevel 1 (
+        echo ⚠️  缺少依赖，正在安装...
+        pip install -r requirements.txt
+    )
 )
 
 REM 启动应用
@@ -30,4 +47,3 @@ python main.py
 echo.
 echo 👋 应用已关闭
 pause
-

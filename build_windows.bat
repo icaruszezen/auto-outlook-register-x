@@ -1,6 +1,6 @@
 @echo off
 REM Windows 打包脚本
-REM 使用 conda 环境打包
+REM 使用 venv 虚拟环境打包
 
 setlocal enabledelayedexpansion
 
@@ -9,14 +9,27 @@ echo   Outlook 自动注册工具 - Windows 打包
 echo ==================================
 echo.
 
-REM 初始化 conda
-call conda.bat activate tool
+REM 检查并创建 venv 虚拟环境
+if not exist ".venv\Scripts\activate.bat" (
+    echo 🔄 创建 venv 虚拟环境...
+    python -m venv .venv
+    if errorlevel 1 (
+        echo ❌ 创建虚拟环境失败！
+        pause
+        exit /b 1
+    )
+)
 
-echo ✅ 当前 conda 环境: %CONDA_DEFAULT_ENV%
+REM 激活 venv 虚拟环境
+echo 🔄 激活 venv 虚拟环境...
+call .venv\Scripts\activate.bat
+
+echo ✅ 当前虚拟环境: %VIRTUAL_ENV%
 echo.
 
-REM 检查依赖
+REM 安装依赖
 echo 📦 检查依赖...
+pip install -r requirements.txt
 pip list | find "PyInstaller" >nul || pip install PyInstaller
 pip list | find "PyQt6" >nul || pip install PyQt6
 
@@ -59,4 +72,3 @@ if exist "dist\OutlookRegister.exe" (
 )
 
 pause
-
