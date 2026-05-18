@@ -170,7 +170,7 @@ build_windows.bat
 ## 📚 项目结构
 
 ```
-auto-outlook-register/
+auto-outlook-register-x/
 ├── main.py                      # 主入口（已修复 PyInstaller 问题）
 ├── requirements.txt             # 依赖列表
 ├── README.md                    # 本文档
