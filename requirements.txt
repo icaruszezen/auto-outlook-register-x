@@ -1,13 +1,11 @@
-# 核心依赖
 selenium>=4.0.0
 undetected-chromedriver>=3.5.0
-
-# UI框架
 PyQt6>=6.6.0
 PyQt6-Qt6>=6.6.0
-
-# 工具库
 python-dotenv>=1.0.0
-
-# pyinstaller 打包库
 pyinstaller>=6.0.0
+fastapi>=0.110
+uvicorn[standard]>=0.27
+websockets>=12
+pydantic>=2.6
+pywebview>=5.0

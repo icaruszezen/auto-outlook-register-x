@@ -33,7 +33,12 @@ def setup_logger(name="auto-ai-register", log_file=None, level=None):
     # 创建格式化器
     formatter = logging.Formatter(Settings.LOG_FORMAT)
     
-    # 控制台处理器
+    # 控制台处理器（强制 UTF-8，避免 Windows GBK 终端无法输出 emoji）
+    if hasattr(sys.stdout, 'reconfigure'):
+        try:
+            sys.stdout.reconfigure(encoding='utf-8')
+        except Exception:
+            pass
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.DEBUG)
     console_handler.setFormatter(formatter)
