@@ -4,6 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config.settings import Settings, DATA_DIR
+from api.routes import outlook as outlook_routes
+from api.ws import register_ws
 
 app = FastAPI(title="OutlookRegister API")
 
@@ -28,6 +30,10 @@ def app_info():
         "version": Settings.APP_VERSION,
         "data_dir": str(DATA_DIR),
     }
+
+
+app.include_router(outlook_routes.router)
+app.include_router(register_ws.router)
 
 
 def run_server(host: str = "127.0.0.1", port: int = 8765):
