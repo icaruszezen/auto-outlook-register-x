@@ -28,14 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ProxyDialog } from "@/components/proxy-dialog";
 import { apiDelete, apiGet } from "@/lib/api";
 import { useWS } from "@/lib/use-ws";
 import { useAppStore } from "@/lib/store";
@@ -224,11 +217,6 @@ export default function AugmentDataPage() {
 
   const handleOpenProxyConfig = () => {
     setProxyDialogOpen(true);
-  };
-
-  const handleCloseProxyConfig = (open: boolean) => {
-    setProxyDialogOpen(open);
-    if (!open) void loadProxyStatus();
   };
 
   const handleConfirmDelete = async () => {
@@ -487,50 +475,11 @@ export default function AugmentDataPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={proxyDialogOpen} onOpenChange={handleCloseProxyConfig}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>代理配置</DialogTitle>
-            <DialogDescription>
-              完整的代理管理面板将在 P7 阶段实现，当前只显示代理状态。
-            </DialogDescription>
-          </DialogHeader>
-          <div className="rounded-md border bg-muted/30 p-3 text-sm">
-            {proxyConfigured ? (
-              <div className="space-y-1">
-                <div>
-                  状态:{" "}
-                  <span className="text-emerald-600 dark:text-emerald-400">
-                    ✅ 已配置 ({proxyStatus.count} 个)
-                  </span>
-                </div>
-                {proxyStatus.current ? (
-                  <>
-                    <div className="font-mono text-xs break-all">
-                      {proxyStatus.current.proxy_url}
-                    </div>
-                    {proxyStatus.current.ip_address ? (
-                      <div className="text-xs text-muted-foreground">
-                        IP: {proxyStatus.current.ip_address}
-                        {proxyStatus.current.location
-                          ? ` · ${proxyStatus.current.location}`
-                          : ""}
-                      </div>
-                    ) : null}
-                  </>
-                ) : null}
-              </div>
-            ) : (
-              <div className="text-muted-foreground">❌ 未配置代理</div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => handleCloseProxyConfig(false)}>
-              关闭
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ProxyDialog
+        open={proxyDialogOpen}
+        onOpenChange={setProxyDialogOpen}
+        onChanged={loadProxyStatus}
+      />
     </div>
   );
 }
